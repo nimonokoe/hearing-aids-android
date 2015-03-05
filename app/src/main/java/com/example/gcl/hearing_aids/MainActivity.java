@@ -1,5 +1,6 @@
 package com.example.gcl.hearing_aids;
-
+import java.util.Locale;
+import java.util.Queue;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
@@ -8,6 +9,7 @@ import android.net.NetworkInfo;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
+import android.speech.tts.TextToSpeech;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -29,16 +31,23 @@ import org.w3c.dom.Text;
 import java.util.ArrayList;
 
 
-public class MainActivity extends ActionBarActivity implements RecognitionListener{
+public class MainActivity extends ActionBarActivity implements RecognitionListener, TextToSpeech.OnInitListener{
 //    private static final int REQUEST_CODE = 1234;
 //    Button Start;
 //    TextView Speech;
 //    Dialog match_text_dialog;
 //    ListView textlist;
 //    ArrayList<String> matches_text;
+    final private Float SPEECH_SLOW = 0.5f;
+    final private Float SPEECH_NORMAL = 1.0f;
+    final private Float SPEECH_FAST = 1.5f;
+    final private Float PITCH_LOW = 0.5f;
+    final private Float PITCH_NORMAL = 1.0f;
+    final private Float PITCH_HIGH = 1.5f;
+    private TextToSpeech    tts;
 
     private TextView returnedText;
-    private ToggleButton toggleButton;
+    private Button refreshButton;
     private ProgressBar progressBar;
     private SpeechRecognizer speech = null;
     private Intent recognizerIntent;
@@ -47,12 +56,12 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        // Initialize for main view.
         returnedText = (TextView)findViewById(R.id.textView1);
         progressBar = (ProgressBar)findViewById(R.id.progressBar1);
-        toggleButton = (ToggleButton)findViewById(R.id.toggleButton1);
-
         progressBar.setVisibility(View.INVISIBLE);
+        refreshButton = (Button)findViewById(R.id.refresh_button);
+        // Initialize for Speech Recognition
         speech = SpeechRecognizer.createSpeechRecognizer(this);
         speech.setRecognitionListener(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -60,21 +69,32 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, this.getPackageName());
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
-
-        toggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        speech.startListening(recognizerIntent);
+        // set toggleButton the event listener for switching speech
+//        toggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+//            @Override
+//            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+//                if (isChecked){
+//                    progressBar.setVisibility(View.VISIBLE);
+//                    progressBar.setIndeterminate(true);
+//                    speech.startListening(recognizerIntent);
+//                }else{
+//                    progressBar.setIndeterminate(false);
+//                    progressBar.setVisibility(View.INVISIBLE);
+//                    speech.stopListening();
+//                }
+//            }
+//        });
+        refreshButton.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked){
-                    progressBar.setVisibility(View.VISIBLE);
-                    progressBar.setIndeterminate(true);
-                    speech.startListening(recognizerIntent);
-                }else{
-                    progressBar.setIndeterminate(false);
-                    progressBar.setVisibility(View.INVISIBLE);
-                    speech.stopListening();
-                }
+            public void onClick(View v) {
+                speech.stopListening();
+                speech.startListening(recognizerIntent);
             }
         });
+
+        tts = new TextToSpeech(this, this);
+
 //        Start = (Button)findViewById(R.id.toggleButton1);
 //        Speech = (TextView)findViewById(R.id.textView1);
 //        Start.setOnClickListener(new View.OnClickListener() {
@@ -137,6 +157,9 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
             speech.destroy();
             Log.i(LOG_TAG, "destroy");
         }
+        if(tts != null){
+            tts.shutdown();
+        }
     }
 
     @Override
@@ -155,15 +178,14 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     public void onEndOfSpeech(){
         Log.i(LOG_TAG, "onEndOfSpeech");
         progressBar.setIndeterminate(true);
-        toggleButton.setChecked(true);
     }
 
     @Override
     public void onError(int errorCode){
         String errorMessage = getErrorText(errorCode);
         Log.d(LOG_TAG, "FAILED " + errorMessage);
-        returnedText.setText(errorMessage);
-        toggleButton.setChecked(false);
+//        returnedText.setText(errorMessage);
+//        toggleButton.setChecked(false);
     }
 
     @Override
@@ -187,8 +209,18 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         String text = "";
         for(String result:matches) text += result + "\n";
-
+        Log.i("[speech message]",matches.get(0));
+        if (tts.isSpeaking()) {
+            // 読み上げ中なら止める
+            tts.stop();
+        }
+        tts.speak(matches.get(0), TextToSpeech.QUEUE_FLUSH, null);
+        matches.clear();
+        while(tts.isSpeaking()){}
+        speech.stopListening();
+        speech.startListening(recognizerIntent);
         returnedText.setText(text);
+
     }
 
     @Override
@@ -230,6 +262,25 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         }
         return message;
     }
+
+    @Override
+    public void onInit(int status) {
+        if (TextToSpeech.SUCCESS == status) {
+            Locale locale = Locale.ENGLISH;
+            if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
+                tts.setLanguage(locale);
+            } else {
+                Log.d("", "Error SetLocale");
+            }
+        } else {
+            Log.d("", "Error Init");
+        }
+    }
+
+
+
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
