@@ -80,6 +80,7 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
             public void onClick(View v) {
                 speech.stopListening();
                 speech.startListening(recognizerIntent);
+                returnedText.setText("[program] I'm listening.");
             }
         });
 
@@ -127,7 +128,7 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         String errorMessage = getErrorText(errorCode);
         Log.d(LOG_TAG, "FAILED " + errorMessage);
         if(!errorMessage.equals("Client side error")){
-            returnedText.setText(errorMessage);
+            returnedText.setText("[program]" + errorMessage);
         }
 //        toggleButton.setChecked(false);
     }
@@ -223,7 +224,7 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     @Override
     public void onInit(int status) {
         if (TextToSpeech.SUCCESS == status) {
-            
+
             Locale locale = Locale.ENGLISH;
             if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
                 tts.setLanguage(locale);
