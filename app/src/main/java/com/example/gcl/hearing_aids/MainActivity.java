@@ -38,6 +38,8 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
 //    Dialog match_text_dialog;
 //    ListView textlist;
 //    ArrayList<String> matches_text;
+    enum State{wait_for_input, listening};
+
     final private Float SPEECH_SLOW = 0.5f;
     final private Float SPEECH_NORMAL = 1.0f;
     final private Float SPEECH_FAST = 1.5f;
@@ -52,6 +54,8 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     private SpeechRecognizer speech = null;
     private Intent recognizerIntent;
     private String LOG_TAG = "VoiceRecognitionActivity";
+
+    private State app_state;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -70,21 +74,7 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
         speech.startListening(recognizerIntent);
-        // set toggleButton the event listener for switching speech
-//        toggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-//            @Override
-//            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-//                if (isChecked){
-//                    progressBar.setVisibility(View.VISIBLE);
-//                    progressBar.setIndeterminate(true);
-//                    speech.startListening(recognizerIntent);
-//                }else{
-//                    progressBar.setIndeterminate(false);
-//                    progressBar.setVisibility(View.INVISIBLE);
-//                    speech.stopListening();
-//                }
-//            }
-//        });
+
         refreshButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -94,56 +84,8 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         });
 
         tts = new TextToSpeech(this, this);
-
-//        Start = (Button)findViewById(R.id.toggleButton1);
-//        Speech = (TextView)findViewById(R.id.textView1);
-//        Start.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//               if(isConnected()){
-//                   Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-//                   intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                           RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-//                   startActivityForResult(intent, REQUEST_CODE);
-//               }else{
-//                   Toast.makeText(getApplicationContext(), "Please Connect to Internet", Toast.LENGTH_LONG).show();
-//               }
-//            }
-//        });
+        app_state = State.wait_for_input;
     }
-//
-//    public boolean isConnected(){
-//        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-//        NetworkInfo net = cm.getActiveNetworkInfo();
-//        if (net != null && net.isAvailable() && net.isConnected()){
-//            return true;
-//        }else{
-//            return false;
-//        }
-//    }
-//
-//    @Override
-//    protected void onActivityResult(int requestCode, int resultCode, Intent data){
-//        if(requestCode == REQUEST_CODE && resultCode == RESULT_OK){
-//            match_text_dialog = new Dialog(MainActivity.this);
-//            match_text_dialog.setContentView(R.layout.fragment_dialog_matches);
-//            match_text_dialog.setTitle("Select Matching Text");
-//            textlist = (ListView)match_text_dialog.findViewById(R.id.list);
-//            matches_text = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-//            ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
-//                    android.R.layout.simple_list_item_1, matches_text);
-//            textlist.setAdapter(adapter);
-//            textlist.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-//                @Override
-//                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-//                    Speech.setText("You have said " + matches_text.get(position));
-//                    match_text_dialog.hide();
-//                }
-//            });
-//            match_text_dialog.show();
-//        }
-//        super.onActivityResult(requestCode, resultCode, data);
-//    }
 
     @Override
     public void onResume(){
@@ -184,7 +126,9 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     public void onError(int errorCode){
         String errorMessage = getErrorText(errorCode);
         Log.d(LOG_TAG, "FAILED " + errorMessage);
-//        returnedText.setText(errorMessage);
+        if(!errorMessage.equals("Client side error")){
+            returnedText.setText(errorMessage);
+        }
 //        toggleButton.setChecked(false);
     }
 
@@ -209,16 +153,29 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         String text = "";
         for(String result:matches) text += result + "\n";
+        text = matches.get(0);
         Log.i("[speech message]",matches.get(0));
-        if (tts.isSpeaking()) {
-            // 読み上げ中なら止める
-            tts.stop();
+        if(app_state == State.wait_for_input){
+            if(matches.get(0).equals("hi grandpa")){
+                app_state = State.listening;
+            }else{
+                for(int i=0; i<10000; i++){
+
+                }
+            }
         }
-        tts.speak(matches.get(0), TextToSpeech.QUEUE_FLUSH, null);
+//        if(app_state == State.listening){
+            if (tts.isSpeaking()) {
+                // 読み上げ中なら止める
+                tts.stop();
+            }
+            tts.speak(matches.get(0), TextToSpeech.QUEUE_FLUSH, null);
+            while(tts.isSpeaking()){}
+//        }
         matches.clear();
-        while(tts.isSpeaking()){}
         speech.stopListening();
         speech.startListening(recognizerIntent);
+
         returnedText.setText(text);
 
     }
@@ -266,6 +223,7 @@ public class MainActivity extends ActionBarActivity implements RecognitionListen
     @Override
     public void onInit(int status) {
         if (TextToSpeech.SUCCESS == status) {
+            
             Locale locale = Locale.ENGLISH;
             if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
                 tts.setLanguage(locale);
